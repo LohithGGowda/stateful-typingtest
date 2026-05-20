@@ -1,7 +1,5 @@
-import { useEffect } from "react";
 import BrandLayout  from "./BrandLayout";
 import Leaderboard  from "./Leaderboard";
-import { saveScore } from "../utils/leaderboard";
 
 function getTier(wpm) {
   if (wpm >= 80) return { label: "Expert",       color: "text-[#e91e8c]",  border: "border-[#e91e8c]" };
@@ -12,18 +10,7 @@ function getTier(wpm) {
 
 export default function ResultsScreen({ participant, wpm, accuracy, onTryAgain, onHome }) {
   const tier = getTier(wpm);
-
-  useEffect(() => {
-    saveScore({
-      name:        participant.name,
-      usn:         participant.usn,
-      role:        participant.role,
-      department:  participant.department,
-      designation: participant.designation ?? "",
-      wpm,
-      accuracy,
-    });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Score is submitted once in TestPage when the test finishes — not here.
 
   return (
     <BrandLayout participantName={participant.name} onHome={onHome}>
