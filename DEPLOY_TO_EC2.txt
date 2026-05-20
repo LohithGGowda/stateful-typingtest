@@ -1,0 +1,213 @@
+================================================================================
+  DEPLOYING AWS TYPING CHALLENGE TO EC2
+  App: aws-typing-challenge  |  Port: 3001  |  Runtime: Node 22 + SQLite
+================================================================================
+
+PREREQUISITES
+─────────────
+- An EC2 instance running Amazon Linux 2023 (or Ubuntu 22.04+)
+- Security Group with inbound rules:
+    • SSH   — TCP 22   — Your IP
+    • HTTP  — TCP 80   — 0.0.0.0/0  (optional, for reverse proxy)
+    • App   — TCP 3001 — 0.0.0.0/0  (or restrict to your audience)
+- Your EC2 key pair (.pem file) available locally
+- Docker installed on the instance (steps below)
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 1 — SSH INTO YOUR EC2 INSTANCE
+────────────────────────────────────────────────────────────────────────────────
+
+  ssh -i /path/to/your-key.pem ec2-user@<YOUR_EC2_PUBLIC_IP>
+
+  For Ubuntu AMIs, replace ec2-user with ubuntu.
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 2 — INSTALL DOCKER ON THE INSTANCE
+────────────────────────────────────────────────────────────────────────────────
+
+  Amazon Linux 2023:
+    sudo dnf update -y
+    sudo dnf install -y docker
+    sudo systemctl enable --now docker
+    sudo usermod -aG docker ec2-user
+    newgrp docker                        # apply group without re-login
+
+  Ubuntu 22.04+:
+    sudo apt update && sudo apt upgrade -y
+    sudo apt install -y docker.io docker-compose-plugin
+    sudo systemctl enable --now docker
+    sudo usermod -aG docker ubuntu
+    newgrp docker
+
+  Verify:
+    docker --version
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 3 — INSTALL DOCKER COMPOSE (if not bundled)
+────────────────────────────────────────────────────────────────────────────────
+
+  sudo curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
+    -o /usr/local/bin/docker-compose
+  sudo chmod +x /usr/local/bin/docker-compose
+  docker-compose --version
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 4 — COPY YOUR PROJECT TO THE INSTANCE
+────────────────────────────────────────────────────────────────────────────────
+
+  Option A — Copy from your local machine (run this on YOUR machine, not EC2):
+
+    scp -i /path/to/your-key.pem -r \
+      ./ \
+      ec2-user@<YOUR_EC2_PUBLIC_IP>:~/aws-typing-challenge
+
+  Option B — Clone from Git (if the repo is on GitHub/CodeCommit):
+
+    git clone https://github.com/<your-org>/<your-repo>.git aws-typing-challenge
+
+  Then on EC2:
+    cd ~/aws-typing-challenge
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 5 — SET YOUR RESET PASSWORD (IMPORTANT)
+────────────────────────────────────────────────────────────────────────────────
+
+  The default RESET_PASSWORD is "RCB". Change it before going live.
+  Edit docker-compose.yml on the instance:
+
+    nano docker-compose.yml
+
+  Find this line and update it:
+    RESET_PASSWORD: RCB
+  Change to:
+    RESET_PASSWORD: <your-secure-password>
+
+  Save and exit (Ctrl+O, Enter, Ctrl+X in nano).
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 6 — BUILD AND START THE CONTAINER
+────────────────────────────────────────────────────────────────────────────────
+
+  From inside the project directory (~/aws-typing-challenge):
+
+    docker-compose up -d --build
+
+  This will:
+    • Build the multi-stage Docker image (React frontend + Node backend)
+    • Start the container named "aws-typing-challenge"
+    • Expose the app on port 3001
+    • Mount a named volume (typing_data) to persist the SQLite database
+    • Restart automatically if the instance reboots (restart: unless-stopped)
+
+  Check it is running:
+    docker-compose ps
+    docker-compose logs -f          # stream logs (Ctrl+C to stop)
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 7 — VERIFY THE APP IS LIVE
+────────────────────────────────────────────────────────────────────────────────
+
+  Health check endpoint:
+    curl http://localhost:3001/api/health
+
+  From your browser:
+    http://<YOUR_EC2_PUBLIC_IP>:3001
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 8 (OPTIONAL) — SERVE ON PORT 80 WITH NGINX REVERSE PROXY
+────────────────────────────────────────────────────────────────────────────────
+
+  Install nginx:
+    sudo dnf install -y nginx          # Amazon Linux
+    sudo apt install -y nginx          # Ubuntu
+
+  Create a site config:
+    sudo nano /etc/nginx/conf.d/typing-challenge.conf
+
+  Paste:
+    server {
+        listen 80;
+        server_name <YOUR_EC2_PUBLIC_IP>;   # or your domain name
+
+        location / {
+            proxy_pass         http://localhost:3001;
+            proxy_http_version 1.1;
+            proxy_set_header   Upgrade $http_upgrade;
+            proxy_set_header   Connection 'upgrade';
+            proxy_set_header   Host $host;
+            proxy_cache_bypass $http_upgrade;
+        }
+    }
+
+  Enable and start nginx:
+    sudo nginx -t                      # test config
+    sudo systemctl enable --now nginx
+
+  Now the app is accessible at:
+    http://<YOUR_EC2_PUBLIC_IP>
+
+
+────────────────────────────────────────────────────────────────────────────────
+USEFUL COMMANDS (day-to-day)
+────────────────────────────────────────────────────────────────────────────────
+
+  Stop the app:
+    docker-compose down
+
+  Restart without rebuilding:
+    docker-compose restart
+
+  Rebuild and redeploy after code changes:
+    docker-compose up -d --build
+
+  View live logs:
+    docker-compose logs -f
+
+  Open a shell inside the running container:
+    docker exec -it aws-typing-challenge sh
+
+  Inspect the persisted SQLite data volume:
+    docker volume inspect aws-typing-challenge_typing_data
+
+
+────────────────────────────────────────────────────────────────────────────────
+DATA PERSISTENCE
+────────────────────────────────────────────────────────────────────────────────
+
+  The SQLite database is stored in a Docker named volume: typing_data
+  It survives container restarts and rebuilds.
+  To back it up, copy it out of the volume:
+
+    docker run --rm \
+      -v aws-typing-challenge_typing_data:/data \
+      -v $(pwd):/backup \
+      alpine tar czf /backup/typing_data_backup.tar.gz -C /data .
+
+
+────────────────────────────────────────────────────────────────────────────────
+TROUBLESHOOTING
+────────────────────────────────────────────────────────────────────────────────
+
+  Container exits immediately:
+    docker-compose logs app            # check for startup errors
+
+  Port 3001 not reachable from browser:
+    - Confirm the EC2 Security Group has TCP 3001 open inbound
+    - Run: docker-compose ps  — ensure the container is "Up"
+
+  Permission denied running docker:
+    - Run: sudo usermod -aG docker $USER && newgrp docker
+
+  Build fails (npm ci errors):
+    - Ensure package-lock.json is committed and up to date locally
+    - Re-run: docker-compose up -d --build --no-cache
+
+================================================================================
