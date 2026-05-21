@@ -45,7 +45,17 @@ router.post("/", (req, res) => {
     accuracy,
   } = req.body;
 
-  const cleanUsn = usn.trim().toUpperCase();
+  const cleanUsn  = usn.trim().toUpperCase();
+  const cleanWpm  = Math.round(Number(wpm));
+  const cleanAcc  = parseFloat(Number(accuracy).toFixed(1));
+
+  // Fair ranking score — never exposed to the frontend.
+  // Formula: WPM × (accuracy/100)²
+  // Effect: 100 WPM @ 100% acc → 100.0
+  //         100 WPM @  80% acc →  64.0
+  //         100 WPM @  60% acc →  36.0
+  // Heavily penalises low accuracy while still rewarding raw speed.
+  const fairScore = parseFloat((cleanWpm * Math.pow(cleanAcc / 100, 2)).toFixed(4));
 
   try {
     // Upsert attendee so score submission alone is sufficient
@@ -63,15 +73,16 @@ router.post("/", (req, res) => {
       role,
       department:  department.trim(),
       designation: designation.trim(),
-      wpm:         Math.round(Number(wpm)),
-      accuracy:    parseFloat(Number(accuracy).toFixed(1)),
+      wpm:         cleanWpm,
+      accuracy:    cleanAcc,
+      fair_score:  fairScore,
     });
 
     return res.status(201).json({
       success: true,
       message: "Score submitted",
       usn: cleanUsn,
-      wpm: Math.round(Number(wpm)),
+      wpm: cleanWpm,
     });
   } catch (err) {
     console.error("[POST /api/scores]", err.message);

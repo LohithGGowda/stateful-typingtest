@@ -101,12 +101,14 @@ export default function TypingTest({ participant, onFinish, onHome }) {
 
     setTyped(next);
 
-    if (next === sourceText) {
+    if (next.length >= sourceText.length) {
       stopTimer();
       setFinished(true);
       const fin = TOTAL_TIME - timeLeft;
       const finMin = fin / 60;
-      onFinish({ wpm: finMin > 0 ? Math.round(next.length / 5 / finMin) : 0, accuracy: 100 });
+      const correctCount = next.split("").filter((ch, i) => ch === sourceText[i]).length;
+      const acc = Math.round((correctCount / next.length) * 100);
+      onFinish({ wpm: finMin > 0 ? Math.round(correctCount / 5 / finMin) : 0, accuracy: acc });
     }
   }, [finished, started, sourceText, timeLeft, startTimer, stopTimer, onFinish]);
 
