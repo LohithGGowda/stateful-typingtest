@@ -67,14 +67,13 @@ export default function WelcomeScreen({ onStart, onHome }) {
   const [role,        setRole]        = useState("");
   const [name,        setName]        = useState("");
   const [usn,         setUsn]         = useState("");
-  const [employeeId,  setEmployeeId]  = useState("");
   const [designation, setDesignation] = useState("");
   const [department,  setDepartment]  = useState("");
   const [errors,      setErrors]      = useState({});
 
   function handleRoleSelect(r) {
     setRole(r);
-    setUsn(""); setEmployeeId(""); setDesignation(""); setDepartment("");
+    setUsn(""); setDesignation(""); setDepartment("");
     setErrors({});
   }
 
@@ -88,8 +87,7 @@ export default function WelcomeScreen({ onStart, onHome }) {
         e.usn = "Enter a valid USN — e.g. 1DB23CS121";
     }
     if (role === "faculty") {
-      if (!employeeId.trim()) e.employeeId  = "Employee ID is required.";
-      if (!designation)       e.designation = "Please select your designation.";
+      if (!designation) e.designation = "Please select your designation.";
     }
     return e;
   }
@@ -100,7 +98,7 @@ export default function WelcomeScreen({ onStart, onHome }) {
     if (Object.keys(errs).length) { setErrors(errs); return; }
     const details = role === "student"
       ? { role, name: name.trim(), usn: usn.trim().toUpperCase(), department }
-      : { role, name: name.trim(), usn: employeeId.trim().toUpperCase(), department, designation };
+      : { role, name: name.trim(), department, designation };
 
     // Register attendee in the background — non-blocking
     registerAttendee(details);
@@ -188,18 +186,8 @@ export default function WelcomeScreen({ onStart, onHome }) {
                   </div>
                 )}
 
-                {/* Faculty: Employee ID + Designation */}
-                {role === "faculty" && (<>
-                  <div>
-                    <label htmlFor="empId" className="form-label">
-                      Employee ID <span className="text-sm font-normal text-[#8888aa]">Staff ID / Faculty Code</span>
-                    </label>
-                    <input id="empId" type="text" autoComplete="off" placeholder="e.g. DBIT-FAC-042"
-                      value={employeeId}
-                      onChange={e => { setEmployeeId(e.target.value.toUpperCase()); if (errors.employeeId) setErrors(p => ({ ...p, employeeId: "" })); }}
-                      className={`brand-input brand-input-lg font-mono tracking-widest ${errors.employeeId ? "error" : ""}`} />
-                    {errors.employeeId && <p className="form-error">{errors.employeeId}</p>}
-                  </div>
+                {/* Faculty: Designation */}
+                {role === "faculty" && (
                   <div>
                     <label htmlFor="designation" className="form-label">Designation</label>
                     <select id="designation" value={designation}
@@ -210,7 +198,7 @@ export default function WelcomeScreen({ onStart, onHome }) {
                     </select>
                     {errors.designation && <p className="form-error">{errors.designation}</p>}
                   </div>
-                </>)}
+                )}
 
                 {/* Department */}
                 <div>

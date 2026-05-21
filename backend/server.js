@@ -85,7 +85,7 @@ app.get("/api/health", (_req, res) => {
 // The Dockerfile copies the Vite build output to /app/dist
 
 if (NODE_ENV === "production") {
-  const DIST = path.join(__dirname, "..", "dist");
+  const DIST = path.join(__dirname, "dist");
   app.use(express.static(DIST));
 
   // All non-API routes → index.html (SPA client-side routing)

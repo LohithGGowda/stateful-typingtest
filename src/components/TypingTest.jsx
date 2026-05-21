@@ -14,7 +14,11 @@ function randomIndex(exclude = -1) {
 /**
  * TypingTest
  * Core 60-second typing interface.
- * Stat cards use official AWS SBG icons from /public.
+ *
+ * Input strategy: a visually-hidden <input> captures keystrokes only.
+ * All text is built character-by-character from keydown events, so
+ * paste / drag-and-drop / reader-mode injection is structurally impossible —
+ * there is no editable field for the browser to inject text into.
  */
 export default function TypingTest({ participant, onFinish, onHome }) {
   const [paraIndex, setParaIndex] = useState(() => randomIndex());
@@ -22,9 +26,12 @@ export default function TypingTest({ participant, onFinish, onHome }) {
   const [timeLeft,  setTimeLeft]  = useState(TOTAL_TIME);
   const [started,   setStarted]   = useState(false);
   const [finished,  setFinished]  = useState(false);
+  const [focused,   setFocused]   = useState(false);
 
-  const inputRef = useRef(null);
-  const timerRef = useRef(null);
+  const inputRef  = useRef(null);
+  const timerRef  = useRef(null);
+  // Keep a ref so keydown handler always sees the latest typed value
+  const typedRef  = useRef("");
 
   const sourceText = paragraphs[paraIndex];
 
@@ -58,27 +65,57 @@ export default function TypingTest({ participant, onFinish, onHome }) {
   useEffect(() => () => stopTimer(), [stopTimer]);
   useEffect(() => { inputRef.current?.focus(); }, []);
 
-  // ── Handlers ───────────────────────────────────────────────────────────────
-  function handleInput(e) {
+  // ── Keystroke handler — the ONLY way text enters the typed state ───────────
+  const handleKeyDown = useCallback((e) => {
     if (finished) return;
-    const value = e.target.value;
-    if (value.length > sourceText.length) return;
-    if (!started && value.length > 0) { setStarted(true); startTimer(); }
-    setTyped(value);
 
-    if (value === sourceText) {
+    // Block all modifier-key combos (Ctrl/Cmd/Alt shortcuts)
+    if (e.ctrlKey || e.metaKey || e.altKey) {
+      e.preventDefault();
+      return;
+    }
+
+    const current = typedRef.current;
+
+    if (e.key === "Backspace") {
+      e.preventDefault();
+      const next = current.slice(0, -1);
+      typedRef.current = next;
+      setTyped(next);
+      return;
+    }
+
+    // Only accept single printable characters
+    if (e.key.length !== 1) return;
+    if (current.length >= sourceText.length) return;
+
+    e.preventDefault();
+
+    const next = current + e.key;
+    typedRef.current = next;
+
+    if (!started) {
+      setStarted(true);
+      startTimer();
+    }
+
+    setTyped(next);
+
+    if (next === sourceText) {
       stopTimer();
       setFinished(true);
       const fin = TOTAL_TIME - timeLeft;
       const finMin = fin / 60;
-      onFinish({ wpm: finMin > 0 ? Math.round(value.length / 5 / finMin) : 0, accuracy: 100 });
+      onFinish({ wpm: finMin > 0 ? Math.round(next.length / 5 / finMin) : 0, accuracy: 100 });
     }
-  }
+  }, [finished, started, sourceText, timeLeft, startTimer, stopTimer, onFinish]);
 
   function handleReset() {
     stopTimer();
-    setParaIndex(randomIndex(paraIndex));
+    const next = randomIndex(paraIndex);
+    setParaIndex(next);
     setTyped("");
+    typedRef.current = "";
     setTimeLeft(TOTAL_TIME);
     setStarted(false);
     setFinished(false);
@@ -99,6 +136,22 @@ export default function TypingTest({ participant, onFinish, onHome }) {
           className={`${cls}${isCursor ? " char-cursor" : ""} font-mono text-xl leading-loose`}
         >
           {char}
+        </span>
+      );
+    });
+  }
+
+  // ── Typed text display (mirrors what the user has typed so far) ────────────
+  function renderTyped() {
+    if (typed.length === 0) return null;
+    return typed.split("").map((ch, i) => {
+      const correct = ch === sourceText[i];
+      return (
+        <span
+          key={i}
+          className={`font-mono text-base ${correct ? "text-green-400" : "text-red-400"}`}
+        >
+          {ch}
         </span>
       );
     });
@@ -200,19 +253,45 @@ export default function TypingTest({ participant, onFinish, onHome }) {
             <p className="leading-loose break-words text-xl">{renderText()}</p>
           </div>
 
-          {/* ── Textarea input ────────────────────────────────────────────── */}
-          <textarea
-            ref={inputRef}
-            value={typed}
-            onChange={handleInput}
-            disabled={finished}
+          {/* ── Typing area (click to focus, keystroke-only input) ────────── */}
+          <div
+            role="textbox"
             aria-label="Typing input area"
-            rows={5}
-            className="brand-input font-mono resize-none disabled:opacity-40 disabled:cursor-not-allowed text-base py-4 px-5 leading-relaxed"
-            placeholder="Click here and start typing…"
-            spellCheck={false}
-            autoCorrect="off"
-            autoCapitalize="off"
+            aria-multiline="true"
+            tabIndex={0}
+            onClick={() => inputRef.current?.focus()}
+            onFocus={() => { setFocused(true); inputRef.current?.focus(); }}
+            className={`brand-input font-mono text-base py-4 px-5 leading-relaxed min-h-[7rem] cursor-text select-none
+              ${finished ? "opacity-40 cursor-not-allowed" : ""}
+              ${focused ? "ring-2 ring-[#e91e8c]/50" : ""}
+            `}
+          >
+            {typed.length === 0 ? (
+              <span className="text-[#555570] italic">Click here and start typing…</span>
+            ) : (
+              <span className="break-all">{renderTyped()}</span>
+            )}
+          </div>
+
+          {/* Hidden input — captures keystrokes, invisible to browser injection */}
+          <input
+            ref={inputRef}
+            type="text"
+            readOnly
+            value=""
+            onKeyDown={handleKeyDown}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            aria-hidden="true"
+            tabIndex={-1}
+            style={{
+              position: "absolute",
+              opacity: 0,
+              pointerEvents: "none",
+              width: 0,
+              height: 0,
+              overflow: "hidden",
+            }}
           />
 
           {/* ── Character progress bar ────────────────────────────────────── */}
@@ -231,7 +310,18 @@ export default function TypingTest({ participant, onFinish, onHome }) {
           </div>
 
           {/* ── Control panel ─────────────────────────────────────────────── */}
-          <div className="flex justify-end pb-4">
+          <div className="flex justify-between pb-4">
+            <button
+              onClick={() => {
+                if (!started || finished || window.confirm("Quit the test? Your progress will be lost.")) {
+                  stopTimer();
+                  onHome();
+                }
+              }}
+              className="btn-ghost px-7 py-2.5 text-sm text-red-400 hover:text-red-300"
+            >
+              ✕ Quit
+            </button>
             <button onClick={handleReset} className="btn-ghost px-7 py-2.5 text-sm">
               ↺ Reset
             </button>

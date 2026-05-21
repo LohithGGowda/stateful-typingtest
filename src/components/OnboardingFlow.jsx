@@ -4,14 +4,20 @@ import BrandLayout from "./BrandLayout";
 /* ─────────────────────────────────────────────────────────────────────────────
    Typewriter hook
    Renders `text` one character at a time at `speed` ms/char.
+   When `skip` is true, instantly shows the full text.
    Calls `onDone` when finished.
 ───────────────────────────────────────────────────────────────────────────── */
-function useTypewriter(text, speed = 28, onDone = null, enabled = true) {
+function useTypewriter(text, speed = 28, onDone = null, enabled = true, skip = false) {
   const [displayed, setDisplayed] = useState("");
   const doneRef = useRef(false);
 
   useEffect(() => {
     if (!enabled) { setDisplayed(text); return; }
+    if (skip) {
+      setDisplayed(text);
+      if (!doneRef.current) { doneRef.current = true; onDone?.(); }
+      return;
+    }
     setDisplayed("");
     doneRef.current = false;
     let i = 0;
@@ -24,7 +30,7 @@ function useTypewriter(text, speed = 28, onDone = null, enabled = true) {
       }
     }, speed);
     return () => clearInterval(id);
-  }, [text, speed, enabled]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [text, speed, enabled, skip]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return displayed;
 }
@@ -76,15 +82,26 @@ const SOCIALS = [
 ───────────────────────────────────────────────────────────────────────────── */
 function StepGreeting({ participant, onNext, onHome }) {
   const [phase, setPhase] = useState(0);
+  const [skip,  setSkip]  = useState(false);
   // phase 0 → greeting types, phase 1 → partnership types, phase 2 → button appears
 
-  const greeting     = `Hi ${participant.name}! 👋`;
-  const partnership  = participant.role === "faculty"
+  // Any keypress skips to the end
+  useEffect(() => {
+    function onKey() {
+      setSkip(true);
+      setPhase(2);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const greeting    = `Hi ${participant.name}! 👋`;
+  const partnership = participant.role === "faculty"
     ? `Welcome to Vignanotsava, ${participant.designation || "esteemed faculty"}! We're honoured to have you participate — this event is proudly powered by the AWS Student Builder Group, Don Bosco Institute of Technology.`
     : `Welcome to Vignanotsava — proudly powered by the AWS Student Builder Group, Don Bosco Institute of Technology.`;
 
-  const greetingText    = useTypewriter(greeting,    30, () => setTimeout(() => setPhase(1), 400), phase >= 0);
-  const partnershipText = useTypewriter(partnership, 22, () => setTimeout(() => setPhase(2), 500), phase >= 1);
+  const greetingText    = useTypewriter(greeting,    30, () => setTimeout(() => setPhase(1), 400), phase >= 0, skip);
+  const partnershipText = useTypewriter(partnership, 22, () => setTimeout(() => setPhase(2), 500), phase >= 1, skip);
 
   return (
     <BrandLayout participantName={participant.name} onHome={onHome}>
@@ -106,14 +123,14 @@ function StepGreeting({ participant, onNext, onHome }) {
             {/* Greeting */}
             <h1 className="text-4xl sm:text-5xl font-extrabold text-white mb-6 min-h-[3.5rem]">
               {greetingText}
-              {phase === 0 && <span className="typewriter-cursor" />}
+              {phase === 0 && !skip && <span className="typewriter-cursor" />}
             </h1>
 
             {/* Partnership */}
             {phase >= 1 && (
               <p className="text-lg text-[#ccccdd] leading-relaxed mb-8 min-h-[5rem]">
                 {partnershipText}
-                {phase === 1 && <span className="typewriter-cursor" />}
+                {phase === 1 && !skip && <span className="typewriter-cursor" />}
               </p>
             )}
 
@@ -148,12 +165,24 @@ function StepGreeting({ participant, onNext, onHome }) {
 function StepSocials({ participant, onNext, onHome }) {
   const [cardsVisible, setCardsVisible] = useState(false);
   const [btnVisible,   setBtnVisible]   = useState(false);
+  const [skip,         setSkip]         = useState(false);
+
+  // Any keypress skips to the end
+  useEffect(() => {
+    function onKey() {
+      setSkip(true);
+      setCardsVisible(true);
+      setBtnVisible(true);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const introText = `To stay updated with event schedules, speaker line-ups, and future cloud initiatives — follow our official community handles!`;
   const intro = useTypewriter(introText, 20, () => {
     setTimeout(() => setCardsVisible(true), 300);
     setTimeout(() => setBtnVisible(true), 1200);
-  });
+  }, true, skip);
 
   return (
     <BrandLayout participantName={participant.name} onHome={onHome}>
@@ -170,7 +199,7 @@ function StepSocials({ participant, onNext, onHome }) {
             {/* Intro typewriter */}
             <p className="text-[#ccccdd] text-lg leading-relaxed mb-8 min-h-[4rem]">
               {intro}
-              {!cardsVisible && <span className="typewriter-cursor" />}
+              {!cardsVisible && !skip && <span className="typewriter-cursor" />}
             </p>
 
             {/* Social cards grid */}

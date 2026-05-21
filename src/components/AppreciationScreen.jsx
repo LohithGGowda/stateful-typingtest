@@ -1,12 +1,17 @@
 import { useState, useEffect, useRef } from "react";
 import BrandLayout from "./BrandLayout";
 
-function useTypewriter(text, speed = 18, onDone = null, enabled = true) {
+function useTypewriter(text, speed = 18, onDone = null, enabled = true, skip = false) {
   const [displayed, setDisplayed] = useState("");
   const doneRef = useRef(false);
 
   useEffect(() => {
     if (!enabled) { setDisplayed(text); return; }
+    if (skip) {
+      setDisplayed(text);
+      if (!doneRef.current) { doneRef.current = true; onDone?.(); }
+      return;
+    }
     setDisplayed("");
     doneRef.current = false;
     let i = 0;
@@ -19,7 +24,7 @@ function useTypewriter(text, speed = 18, onDone = null, enabled = true) {
       }
     }, speed);
     return () => clearInterval(id);
-  }, [text, speed, enabled]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [text, speed, enabled, skip]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return displayed;
 }
@@ -28,11 +33,7 @@ function useTypewriter(text, speed = 18, onDone = null, enabled = true) {
  * AppreciationScreen
  * Shown after the typing test completes.
  * Typewriter appreciation message + leadership sign-off + CTA to view results.
- *
- * Props:
- *   participant  — { name, usn, role, ... }
- *   onContinue   — called when the participant clicks the CTA
- *   ctaLabel     — button label (default: "View My Results →")
+ * Press any key to skip the animation and jump straight to the button.
  */
 export default function AppreciationScreen({
   participant,
@@ -41,9 +42,20 @@ export default function AppreciationScreen({
   ctaLabel = "View My Results →",
 }) {
   const [phase, setPhase] = useState(0);
+  const [skip,  setSkip]  = useState(false);
   // phase 0 → appreciation typing
   // phase 1 → sign-off typing
   // phase 2 → CTA appears
+
+  // Any keypress skips to the end
+  useEffect(() => {
+    function onKey() {
+      setSkip(true);
+      setPhase(2);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const appreciation =
     `Thank you, ${participant.name}, for participating in this activity hosted by the AWS Student Builder Group at Don Bosco Institute of Technology. ` +
@@ -56,12 +68,14 @@ export default function AppreciationScreen({
   const appreciationText = useTypewriter(
     appreciation, 16,
     () => setTimeout(() => setPhase(1), 600),
-    true
+    true,
+    skip
   );
   const signoffText = useTypewriter(
     signoff, 20,
     () => setTimeout(() => setPhase(2), 500),
-    phase >= 1
+    phase >= 1,
+    skip
   );
 
   return (
@@ -84,7 +98,7 @@ export default function AppreciationScreen({
             {/* Appreciation paragraph — typewriter */}
             <p className="text-[#ccccdd] text-lg leading-relaxed mb-8 min-h-[8rem]">
               {appreciationText}
-              {phase === 0 && <span className="typewriter-cursor" />}
+              {phase === 0 && !skip && <span className="typewriter-cursor" />}
             </p>
 
             {/* Sign-off — typewriter, appears after appreciation */}
@@ -92,7 +106,7 @@ export default function AppreciationScreen({
               <div className="border-t border-[#2e2e45] pt-6 mb-8 animate-fade-in">
                 <p className="text-[#8888aa] text-sm leading-relaxed whitespace-pre-line italic">
                   {signoffText}
-                  {phase === 1 && <span className="typewriter-cursor" />}
+                  {phase === 1 && !skip && <span className="typewriter-cursor" />}
                 </p>
               </div>
             )}
@@ -100,29 +114,16 @@ export default function AppreciationScreen({
             {/* AWS + SBG logos — fade in with sign-off */}
             {phase >= 1 && (
               <div className="flex items-center justify-center gap-4 mb-8 opacity-60 animate-fade-in">
-                <img
-                  src="/AWS_logo_RGB_WHT.png"
-                  alt="AWS"
-                  className="h-6 object-contain"
-                />
-                <img
-                  src="/AWS Student Builder Group_RGB_Brandmark_White.png"
-                  alt="AWS Student Builder Group"
-                  className="h-6 object-contain"
-                />
+                <img src="/AWS_logo_RGB_WHT.png" alt="AWS" className="h-6 object-contain" />
+                <img src="/AWS Student Builder Group_RGB_Brandmark_White.png" alt="AWS Student Builder Group" className="h-6 object-contain" />
               </div>
             )}
 
-            {/* CTA — appears only after sign-off finishes */}
+            {/* CTA — appears after sign-off finishes, or immediately on skip */}
             {phase >= 2 && (
               <div className="text-center animate-fade-in">
-                <p className="text-[#8888aa] text-sm mb-4">
-                  Ready to see how you did?
-                </p>
-                <button
-                  onClick={onContinue}
-                  className="btn-pink btn-lg px-14"
-                >
+                <p className="text-[#8888aa] text-sm mb-4">Ready to see how you did?</p>
+                <button onClick={onContinue} className="btn-pink btn-lg px-14">
                   {ctaLabel}
                 </button>
               </div>
