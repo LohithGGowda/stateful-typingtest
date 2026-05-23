@@ -7,7 +7,6 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useParticipant } from "../context/ParticipantContext";
 import TypingTest from "../components/TypingTest";
-import { saveScore } from "../utils/leaderboard";
 
 export default function TestPage() {
   const navigate = useNavigate();
@@ -21,17 +20,8 @@ export default function TestPage() {
   if (!participant.name) return null;
 
   function handleFinish({ wpm, accuracy }) {
-    saveScore({
-      name:        participant.name,
-      usn:         participant.usn,
-      role:        participant.role,
-      department:  participant.department,
-      designation: participant.designation || "",
-      wpm,
-      accuracy,
-    });
     setScores({ wpm, accuracy });
-    navigate("/appreciation");
+    navigate("/feedback");
   }
 
   return (

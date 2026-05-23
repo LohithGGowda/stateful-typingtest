@@ -18,10 +18,13 @@ const RESET_PASSWORD = process.env.RESET_PASSWORD || "RCB";
 router.get("/", (req, res) => {
   try {
     const { role } = req.query;
+    console.log(`[GET /api/leaderboard] role=${role || 'all'}`);
+    
     const entries = (role === "student" || role === "faculty")
       ? db.getBestScoresByRole(role)
       : db.getBestScores();
 
+    console.log(`[GET /api/leaderboard] Found ${entries.length} entries for role=${role || 'all'}`);
     return res.json({ success: true, count: entries.length, entries });
   } catch (err) {
     console.error("[GET /api/leaderboard]", err.message);

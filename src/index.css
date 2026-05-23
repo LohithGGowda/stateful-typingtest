@@ -1104,3 +1104,35 @@ select.brand-input option {
 }
 .lbp-empty-icon { font-size: 2.5rem; opacity: 0.3; }
 .lbp-empty-sub  { font-size: 0.78rem; color: #444460; }
+
+/* ── Feedback emoji buttons ───────────────────────────────────────────────── */
+.feedback-emoji {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem 1rem;
+  min-width: 120px;
+  background-color: var(--bg-input);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.feedback-emoji:hover:not(:disabled) {
+  border-color: var(--pink);
+  background-color: rgba(233, 30, 140, 0.08);
+  transform: translateY(-4px);
+}
+
+.feedback-emoji-selected {
+  border-color: var(--pink);
+  background-color: rgba(233, 30, 140, 0.15);
+  box-shadow: 0 0 20px rgba(233, 30, 140, 0.3);
+}
+
+.feedback-emoji:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

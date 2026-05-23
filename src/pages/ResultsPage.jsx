@@ -13,14 +13,16 @@ export default function ResultsPage() {
   const { participant, scores, resetParticipant } = useParticipant();
 
   useEffect(() => {
-    if (!participant.name) navigate("/", { replace: true });
-  }, [participant.name, navigate]);
+    if (!participant.name || !scores.wpm) {
+      navigate("/", { replace: true });
+    }
+  }, [participant.name, scores.wpm, navigate]);
 
-  if (!participant.name) return null;
+  if (!participant.name || !scores.wpm) return null;
 
   function handleNextParticipant() {
     resetParticipant();
-    navigate("/");
+    navigate("/appreciation");
   }
 
   return (

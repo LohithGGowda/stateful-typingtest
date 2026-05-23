@@ -47,6 +47,7 @@ db.exec(`
     wpm          INTEGER NOT NULL DEFAULT 0,
     accuracy     REAL    NOT NULL DEFAULT 0,
     fair_score   REAL    NOT NULL DEFAULT 0,
+    feedback     INTEGER DEFAULT NULL CHECK(feedback BETWEEN 1 AND 5),
     submitted_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
     FOREIGN KEY (usn) REFERENCES attendees(usn) ON DELETE CASCADE
   );
@@ -56,12 +57,16 @@ db.exec(`
 `);
 
 // ── Migration: add fair_score to existing databases ───────────────────────────
-// Safe no-op if the column already exists (SQLite ignores duplicate ADD COLUMN
-// only via try/catch since it doesn't support IF NOT EXISTS for columns).
 try {
   db.exec(`ALTER TABLE scores ADD COLUMN fair_score REAL NOT NULL DEFAULT 0`);
-  // Back-fill existing rows using the same formula: wpm * (accuracy/100)^2
   db.exec(`UPDATE scores SET fair_score = ROUND(wpm * ((accuracy / 100.0) * (accuracy / 100.0)), 4) WHERE fair_score = 0`);
+} catch {
+  // Column already exists — nothing to do
+}
+
+// ── Migration: add feedback column ────────────────────────────────────────────
+try {
+  db.exec(`ALTER TABLE scores ADD COLUMN feedback INTEGER DEFAULT NULL CHECK(feedback BETWEEN 1 AND 5)`);
 } catch {
   // Column already exists — nothing to do
 }
@@ -78,8 +83,8 @@ const upsertAttendee = db.prepare(`
 `);
 
 const insertScore = db.prepare(`
-  INSERT INTO scores (usn, name, role, department, designation, wpm, accuracy, fair_score)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO scores (usn, name, role, department, designation, wpm, accuracy, fair_score, feedback)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 const getBestScores = db.prepare(`
@@ -94,11 +99,11 @@ const getBestScores = db.prepare(`
     s.submitted_at        AS timestamp
   FROM scores s
   INNER JOIN (
-    SELECT usn, MAX(fair_score) AS best_fair
+    SELECT usn, MAX(fair_score) AS best_fair, MAX(submitted_at) AS latest_time
     FROM scores
     GROUP BY usn
-  ) best ON s.usn = best.usn AND s.fair_score = best.best_fair
-  ORDER BY s.fair_score DESC
+  ) best ON s.usn = best.usn AND s.fair_score = best.best_fair AND s.submitted_at = best.latest_time
+  ORDER BY s.fair_score DESC, s.submitted_at DESC
 `);
 
 const getBestScoresByRole = db.prepare(`
@@ -113,13 +118,13 @@ const getBestScoresByRole = db.prepare(`
     s.submitted_at        AS timestamp
   FROM scores s
   INNER JOIN (
-    SELECT usn, MAX(fair_score) AS best_fair
+    SELECT usn, MAX(fair_score) AS best_fair, MAX(submitted_at) AS latest_time
     FROM scores
     WHERE role = ?
     GROUP BY usn
-  ) best ON s.usn = best.usn AND s.fair_score = best.best_fair
+  ) best ON s.usn = best.usn AND s.fair_score = best.best_fair AND s.submitted_at = best.latest_time
   WHERE s.role = ?
-  ORDER BY s.fair_score DESC
+  ORDER BY s.fair_score DESC, s.submitted_at DESC
 `);
 
 const deleteAllScores = db.prepare(`DELETE FROM scores`);
@@ -142,7 +147,7 @@ module.exports = {
   insertScore(data) {
     return insertScore.run(
       data.usn, data.name, data.role, data.department, data.designation,
-      data.wpm, data.accuracy, data.fair_score
+      data.wpm, data.accuracy, data.fair_score, data.feedback ?? null
     );
   },
 

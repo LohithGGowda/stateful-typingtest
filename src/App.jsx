@@ -3,6 +3,7 @@ import HomePage              from "./pages/HomePage";
 import OnboardingPage        from "./pages/OnboardingPage";
 import SocialMediaPage       from "./pages/SocialMediaPage";
 import TestPage              from "./pages/TestPage";
+import FeedbackPage          from "./pages/FeedbackPage";
 import AppreciationPage      from "./pages/AppreciationPage";
 import ResultsPage           from "./pages/ResultsPage";
 import LeaderboardPageRoute  from "./pages/LeaderboardPageRoute";
@@ -14,6 +15,7 @@ import NotFoundPage          from "./pages/NotFoundPage";
  *   /onboarding    → Personalized greeting + social hub
  *   /connect       → Standalone social media handles page
  *   /test          → 60-second typing challenge
+ *   /feedback      → User experience rating (1-5 emojis)
  *   /appreciation  → Post-test thank-you + sign-off
  *   /results       → Score card + leaderboard
  *   /leaderboard   → Full leaderboard (Students vs Faculty)
@@ -26,6 +28,7 @@ export default function App() {
       <Route path="/onboarding"   element={<OnboardingPage />} />
       <Route path="/connect"      element={<SocialMediaPage />} />
       <Route path="/test"         element={<TestPage />} />
+      <Route path="/feedback"     element={<FeedbackPage />} />
       <Route path="/appreciation" element={<AppreciationPage />} />
       <Route path="/results"      element={<ResultsPage />} />
       <Route path="/leaderboard"  element={<LeaderboardPageRoute />} />
